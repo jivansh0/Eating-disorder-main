@@ -18,7 +18,46 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Initial loading state that will be replaced when React mounts -->
+      <div style="display: flex; height: 100vh; width: 100%; align-items: center; justify-content: center; flex-direction: column;">
+        <div style="height: 50px; width: 50px; border: 4px solid #e2e8f0; border-top-color: #6667ab; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <p style="margin-top: 20px; font-family: sans-serif; color: #4a5568;">Loading application...</p>
+      </div>
+      
+      <style>
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
+    </div>
+    
+    <!-- Fallback script in case JS fails to load or run -->
+    <script>
+      // Show error after 10 seconds if the app doesn't load
+      setTimeout(function() {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML.includes('Loading application')) {
+          root.innerHTML = `
+            <div style="padding: 20px; text-align: center; font-family: sans-serif;">
+              <h1 style="color: #e53e3e;">Application Failed to Load</h1>
+              <p>There was a problem loading the application.</p>
+              <p>This could be due to:</p>
+              <ul style="text-align: left; max-width: 500px; margin: 20px auto; line-height: 1.6;">
+                <li>Network connectivity issues</li>
+                <li>Missing environment configuration</li>
+                <li>JavaScript errors in the application</li>
+              </ul>
+              <button onclick="window.location.reload()" 
+                style="background-color: #805ad5; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
+                Try Again
+              </button>
+            </div>
+          `;
+        }
+      }, 10000);
+    </script>
+    
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>

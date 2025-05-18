@@ -2,15 +2,30 @@ import { initializeApp } from "firebase/app";
 import { getAuth, setPersistence, browserLocalPersistence, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
+// Check for essential Firebase configuration variables
+const checkRequiredEnvVars = () => {
+  const requiredVars = ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID'];
+  const missing = requiredVars.filter(key => !import.meta.env[key]);
+  
+  if (missing.length > 0) {
+    console.error(`Missing required environment variables: ${missing.join(', ')}`);
+    // Add to localStorage for debugging
+    localStorage.setItem('firebase_config_error', `Missing env vars: ${missing.join(', ')}`);
+  }
+};
+
+// Run check (will log warnings but still attempt to initialize)
+checkRequiredEnvVars();
+
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'MISSING_API_KEY',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'recovery-journey-e950b.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'recovery-journey-e950b',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'recovery-journey-e950b.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '312698346068',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:312698346068:web:d35ff0ebefe7597564ebc1',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-CZKZQTV96F',
 };
 
 // Add current domain to the list of authorized domains during runtime
@@ -66,9 +81,42 @@ const addCurrentDomainToConfig = (config) => {
 
 // Initialize Firebase with potentially enhanced config
 const enhancedConfig = addCurrentDomainToConfig(firebaseConfig);
-const app = initializeApp(enhancedConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+
+// For debugging
+console.log('Firebase config (safe to log):', {
+  authDomain: enhancedConfig.authDomain,
+  projectId: enhancedConfig.projectId,
+  storageBucket: enhancedConfig.storageBucket
+});
+
+// Save config info for debugging
+localStorage.setItem('firebase_auth_domain', enhancedConfig.authDomain || 'not_set');
+localStorage.setItem('firebase_project_id', enhancedConfig.projectId || 'not_set');
+localStorage.setItem('current_domain', window.location.hostname);
+localStorage.setItem('app_environment', import.meta.env.VITE_APP_ENVIRONMENT || 'not_set');
+
+// Try to initialize Firebase with error handling
+let app, auth, db;
+try {
+  app = initializeApp(enhancedConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  
+  console.log("Firebase initialized successfully");
+  localStorage.setItem('firebase_init_status', 'success');
+} catch (error) {
+  console.error("Error initializing Firebase:", error);
+  localStorage.setItem('firebase_init_error', error.message);
+  
+  // Create fallback objects to prevent further errors
+  // This way the app can at least render something instead of showing a blank screen
+  app = { name: 'firebase-init-failed' };
+  auth = { 
+    currentUser: null,
+    onAuthStateChanged: (callback) => { callback(null); return () => {}; }
+  };
+  db = { collection: () => ({ doc: () => ({ get: () => Promise.resolve({ exists: false }) }) }) };
+}
 
 // Create and configure Google provider with proper scopes
 const googleProvider = new GoogleAuthProvider();
