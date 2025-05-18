@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../hooks/use-auth";
-import { useLoginFix } from "../hooks/use-login-fix";
+import { useAuth } from "../context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +21,6 @@ const RegisterPage = () => {
   const { register, loginWithGoogle, error, currentUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  
-  // Use our login fix hook to help with authentication issues
-  useLoginFix(['/login', '/register', '/', '/crisis-resources']);
 
   useEffect(() => {
     // Trigger animation after component mounts
@@ -88,11 +84,6 @@ const RegisterPage = () => {
         errorMessage = "Authentication service is unavailable. Please try again later.";
       } else if (err.code === "auth/network-request-failed") {
         errorMessage = "Network error. Please check your connection and try again.";
-      } else if (err.code === "auth/unauthorized-domain") {
-        // Handle the unauthorized domain error specifically
-        const domain = window.location.hostname;
-        errorMessage = `This domain (${domain}) is not authorized for authentication. Please contact the administrator.`;
-        console.error("Unauthorized domain error. Current domain:", domain);
       }
       
       toast({

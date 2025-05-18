@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../hooks/use-auth";
+import { useAuth } from "../context/AuthContext";
 import { updateUserProgress } from "../services/progressService";
 import AppLayout from "../components/AppLayout";
 import GoalsDialog from "../components/GoalsDialog";

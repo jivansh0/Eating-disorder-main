@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../hooks/use-auth";
+import { useAuth } from "../context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { AlertCircle, CloudOff, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -210,36 +210,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <>{children}</>;
   }
 
-  // Check if we're in a login session that might be having issues
-  const recentLoginAttempt = localStorage.getItem('loginSuccess') || localStorage.getItem('googleLoginSuccess');
-  const loginAttemptTime = recentLoginAttempt ? parseInt(recentLoginAttempt) : 0;
-  const isRecentLoginAttempt = (Date.now() - loginAttemptTime) < 30000; // Within 30 seconds
-  
-  // Enhanced check for login status - check Firebase auth first, then context user
+  // Only redirect to login if we've confirmed there's no Firebase user and no context user
   if (!currentUser && !auth.currentUser && authChecked) {
-    // If there was a recent login attempt but we're still not logged in, something's wrong
-    if (isRecentLoginAttempt) {
-      console.log("Recent login attempt detected but no user found - showing loading while retrying");
-      
-      // Wait briefly and then force reload to try to recover
-      setTimeout(() => {
-        console.log("Login recovery: Reloading page to try to recover session");
-        window.location.reload();
-      }, 2000);
-      
-      return <div className="flex h-screen w-full items-center justify-center flex-col">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-healing-300 border-t-healing-600 mb-4"></div>
-        <p className="text-gray-600">Establishing secure connection...</p>
-      </div>;
-    }
-    
     console.log("No user found in both Firebase and context, redirecting to login");
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // For the dashboard specifically, don't redirect to onboarding on refresh if we're still checking
-  if (location.pathname === '/dashboard' && (auth.currentUser || isRecentLoginAttempt)) {
-    console.log("On dashboard with authenticated user or recent login, allowing access");
+  if (location.pathname === '/dashboard' && auth.currentUser && onboardingCompleted === null) {
+    console.log("On dashboard with authenticated user, allowing access while checking onboarding status");
     return <>{children}</>;
   }
 

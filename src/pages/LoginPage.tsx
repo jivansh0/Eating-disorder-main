@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../hooks/use-auth";
-import { useLoginFix } from "../hooks/use-login-fix";
+import { useAuth } from "../context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,9 +17,6 @@ const LoginPage = () => {
   const { login, loginWithGoogle, error, currentUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  
-  // Use our login fix hook to help with authentication issues
-  useLoginFix(['/login', '/register', '/', '/crisis-resources']);
 
   useEffect(() => {
     // Trigger animation after component mounts
@@ -41,30 +37,18 @@ const LoginPage = () => {
     setIsSubmitting(true);
 
     try {
-      console.log("Starting login process...");
       const user = await login(email, password);
-      
-      // Store login success flag to track login state
-      localStorage.setItem('loginSuccess', Date.now().toString());
-      
       toast({
         title: "Success",
         description: "You have been successfully logged in",
       });
       
-      console.log("Login successful, redirecting to dashboard...");
+      console.log("Login successful, redirecting...");
       
-      // Force navigation with replace to clear history and prevent back issues
+      // On regular login, always redirect to dashboard regardless of onboarding status
+      // This ensures existing users never get sent to onboarding on login
+      console.log("Navigating to dashboard after login");
       navigate("/dashboard", { replace: true });
-      
-      // Set a small timeout then reload the page if still on login page
-      // This helps break out of cases where the navigation fails silently
-      setTimeout(() => {
-        if (window.location.pathname === '/login') {
-          console.log("Still on login page after navigation, forcing page reload");
-          window.location.href = '/dashboard';
-        }
-      }, 1000);
       
     } catch (err: any) {
       // The error from the context is already set by login()
@@ -81,8 +65,6 @@ const LoginPage = () => {
         errorMessage = "This account has been disabled. Please contact support.";
       } else if (err.code === "auth/invalid-email") {
         errorMessage = "Invalid email format. Please check your email address.";
-      } else if (err.code === "auth/network-request-failed") {
-        errorMessage = "Network error. Please check your connection and try again.";
       } else if (err.code === "auth/configuration-not-found") {
         errorMessage = "Authentication service is temporarily unavailable. Please try again later.";
       }
@@ -99,44 +81,25 @@ const LoginPage = () => {
   const handleGoogleLogin = async () => {
     try {
       setIsSubmitting(true);
-      console.log("Starting Google login process...");
       const user = await loginWithGoogle();
-      
-      // Store login success flag to track login state
-      localStorage.setItem('googleLoginSuccess', Date.now().toString());
       
       toast({
         title: "Success",
         description: "You have been successfully logged in with Google",
       });
       
-      console.log("Google login successful, redirecting to dashboard...");
+      console.log("Google login successful, redirecting...");
       
-      // Force navigation with replace to clear history and prevent back issues
+      // For Google login, always direct to dashboard after successful login
+      // This ensures existing users never get sent to onboarding on login
+      console.log("Navigating to dashboard after Google login");
       navigate("/dashboard", { replace: true });
-      
-      // Set a small timeout then reload the page if still on login page
-      // This helps break out of cases where the navigation fails silently
-      setTimeout(() => {
-        if (window.location.pathname === '/login') {
-          console.log("Still on login page after Google navigation, forcing page reload");
-          window.location.href = '/dashboard';
-        }
-      }, 1000);
       
     } catch (err: any) {
       console.error("Google login error in component:", err);
       
-      // Get a user-friendly error message and check for specific Google auth errors
-      let errorMessage = err.message || "Failed to log in with Google. Please try again.";
-      
-      if (err.code === "auth/popup-closed-by-user") {
-        errorMessage = "Login window was closed. Please try again.";
-      } else if (err.code === "auth/popup-blocked") {
-        errorMessage = "Login popup was blocked. Please allow popups for this site.";
-      } else if (err.code === "auth/network-request-failed") {
-        errorMessage = "Network error. Please check your connection and try again.";
-      }
+      // Get a user-friendly error message
+      const errorMessage = err.message || "Failed to log in with Google. Please try again.";
       
       toast({
         title: "Login Error",

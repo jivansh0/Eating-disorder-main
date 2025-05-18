@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { auth } from "./firebaseConfig";
 
 // Pages
 import WelcomePage from "./pages/WelcomePage";
@@ -33,19 +32,10 @@ const HomeRoute = () => {
   
   // On first render, check if we're coming from a persisted session
   useEffect(() => {
-    // Check for Firebase auth directly for faster feedback
-    const directFirebaseUser = auth.currentUser;
-    if (directFirebaseUser) {
-      console.log("HomeRoute found direct Firebase user:", directFirebaseUser.uid);
-      // Go directly to dashboard for existing users to prevent flickering
-      // We'll do a proper check later in the navigation guards
-      window.location.href = "/dashboard";
-    }
-    
-    // Add a short delay to ensure auth state is properly loaded if no direct user
+    // Add a short delay to ensure auth state is properly loaded
     const timer = setTimeout(() => {
       setIsInitialLoad(false);
-    }, 1000); // Increased to 1000ms for more reliable loading
+    }, 500);
     
     return () => clearTimeout(timer);
   }, []);
@@ -59,25 +49,17 @@ const HomeRoute = () => {
   
   // If user is logged in
   if (currentUser) {
-    console.log("HomeRoute: User is logged in, checking onboarding status");
-    
-    // Check for cached onboarding status first for faster response
-    const cachedOnboarding = localStorage.getItem(`onboarding_${currentUser.id}`);
-    const userOnboardingCompleted = cachedOnboarding === 'true' || currentUser.onboardingCompleted;
-    
-    if (userOnboardingCompleted) {
+    // Check if they've completed onboarding
+    if (currentUser.onboardingCompleted) {
       // Redirect to dashboard if onboarding is complete
-      console.log("HomeRoute: Redirecting to dashboard");
       return <Navigate to="/dashboard" replace />;
     } else {
       // Redirect to onboarding if not complete
-      console.log("HomeRoute: Redirecting to onboarding");
       return <Navigate to="/onboarding" replace />;
     }
   }
   
   // If no user is logged in, show the welcome page
-  console.log("HomeRoute: No user found, showing welcome page");
   return <WelcomePage />;
 };
 

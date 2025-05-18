@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, WifiOff, RefreshCw, ArrowLeft } from 'lucide-react';
 import OnboardingWelcome from '@/components/OnboardingWelcome';
@@ -130,17 +130,17 @@ const Onboarding = () => {
       // Use direct navigation instead
       navigate('/dashboard');
       
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error("Failed to complete onboarding:", error);
       
       let errorMessage = "An error occurred. ";
       
       if (!isOnline) {
         errorMessage = "You're offline. Your preferences will be saved locally and synced when you're back online.";
-      } else if (error instanceof Error && (error.message.includes("offline") || error.message.includes("network"))) {
+      } else if (error.message.includes("offline") || error.message.includes("network")) {
         errorMessage = "Failed to connect to our servers. Please check your internet connection.";
       } else {
-        errorMessage += error instanceof Error ? error.message : "Please try again.";
+        errorMessage += error.message || "Please try again.";
       }
       
       setError(errorMessage);
@@ -179,7 +179,7 @@ const Onboarding = () => {
     return false;
   };
 
-  const handleNavigateBack = async () => {
+  const handleNavigateBack = () => {
     // If we're logged in, we need a more complete solution
     if (currentUser) {
       // Show loading toast
@@ -193,16 +193,14 @@ const Onboarding = () => {
       
       // Use the Auth context's logout function if it exists
       if (typeof logout === 'function') {
-        try {
-          // Use async/await for better error handling
-          await logout();
+        logout().then(() => {
           // After logout, navigate to the welcome page
           navigate('/', { replace: true });
-        } catch (error) {
-          console.error("Error during logout:", error instanceof Error ? error.message : String(error));
+        }).catch(error => {
+          console.error("Error during logout:", error);
           // If logout fails, still navigate 
           navigate('/', { replace: true });
-        }
+        });
       } else {
         // If logout function isn't available (shouldn't happen), just navigate
         navigate('/', { replace: true });

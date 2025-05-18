@@ -31,31 +31,36 @@ const onNetworkStatusChange = (callback: (isOnline: boolean) => void) => {
 import { syncLocalEntriesWithFirebase } from "../services/moodService";
 import { User as AppUser } from "@/types/types";
 import { useToast } from "@/hooks/use-toast";
-import { AuthContext, AuthContextType } from "./AuthContextDef";
+
+interface AuthContextType {
+  currentUser: AppUser | null;
+  loading: boolean;
+  error: Error | null;
+  isOnline: boolean;
+  login: (email: string, password: string) => Promise<AppUser | null>;
+  register: (email: string, password: string, name: string) => Promise<void>;
+  loginWithGoogle: () => Promise<AppUser | null>;
+  logout: () => void;
+  updateUserProfile: (data: Partial<AppUser>) => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+};
 
 // Helper function to convert Firebase user to our User type
 const formatUser = async (firebaseUser: FirebaseUser): Promise<AppUser> => {
   try {
-    // First check if we're on Vercel - special handling required
-    const isVercel = isVercelDeployment();
-    if (isVercel) {
-      localStorage.setItem('formatUser_vercel_detected', 'true');
-      console.log(`Formatting user on Vercel deployment: ${window.location.hostname}`);
-    }
-    
     // Check if we're online before trying to fetch from Firestore
     if (!getNetworkStatus()) {
-      // If offline, check localStorage for onboarding status and other user data first
+      // If offline, check localStorage for onboarding status first
       const onboardingCompleted = localStorage.getItem('userOnboardingComplete') === 'true';
-      const userDisorder = localStorage.getItem(`disorder_${firebaseUser.uid}`) || localStorage.getItem('userDisorder');
-      const userGoalsStr = localStorage.getItem(`goals_${firebaseUser.uid}`) || localStorage.getItem('userGoals');
-      let userGoals: string[] | undefined;
-      
-      try {
-        userGoals = userGoalsStr ? JSON.parse(userGoalsStr) : undefined;
-      } catch (e) {
-        console.error("Error parsing cached goals:", e);
-      }
       
       // If offline, return basic user info from Firebase Auth
       console.log("Offline: Using basic user info from Firebase Auth with onboarding status:", onboardingCompleted);
@@ -63,8 +68,6 @@ const formatUser = async (firebaseUser: FirebaseUser): Promise<AppUser> => {
         id: firebaseUser.uid,
         email: firebaseUser.email || "",
         name: firebaseUser.displayName || "",
-        disorder: userDisorder,
-        goals: userGoals,
         onboardingCompleted: onboardingCompleted, // Use cached value instead of default false
         registrationDate: new Date(),
         lastActivity: new Date().toISOString(),
@@ -79,130 +82,43 @@ const formatUser = async (firebaseUser: FirebaseUser): Promise<AppUser> => {
     }
     
     // If online, try to get user data from Firestore
-    try {
-      const isVercelEnv = isVercelDeployment();
-      if (isVercelEnv) {
-        console.log("Vercel: Fetching Firestore data for user:", firebaseUser.uid);
+    const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+    
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      console.log("User data from Firestore:", userData);
+      
+      // Store onboarding status in localStorage for offline use
+      if (userData.onboardingCompleted) {
+        localStorage.setItem('userOnboardingComplete', 'true');
       }
       
-      const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-      
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        console.log("User data from Firestore:", userData);
-        
-        // Cache all important user data in localStorage for offline use and Vercel persistence
-        if (userData.onboardingCompleted === true) {
-          localStorage.setItem('userOnboardingComplete', 'true');
-          localStorage.setItem(`onboarding_${firebaseUser.uid}`, 'true');
-        } else if (userData.onboardingCompleted === false) {
-          // Explicitly set false to distinguish from undefined
-          localStorage.setItem('userOnboardingComplete', 'false');
-          localStorage.setItem(`onboarding_${firebaseUser.uid}`, 'false');
+      return {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || "",
+        name: firebaseUser.displayName || userData.name,
+        disorder: userData.disorder,
+        goals: userData.goals || [],
+        onboardingCompleted: userData.onboardingCompleted === true, // Ensure boolean type
+        registrationDate: userData.createdAt ? new Date(userData.createdAt) : new Date(),
+        lastActivity: userData.lastActivity || new Date().toISOString(),
+        moodEntries: userData.moodEntries || 0,
+        progressMetrics: userData.progressMetrics || {
+          completedGoals: 0,
+          totalGoals: 0,
+          streakDays: 0,
+          lastActiveDate: new Date().toISOString()
         }
-        
-        if (userData.disorder) {
-          localStorage.setItem('userDisorder', userData.disorder);
-          localStorage.setItem(`disorder_${firebaseUser.uid}`, userData.disorder);
-        }
-        
-        if (userData.goals) {
-          localStorage.setItem('userGoals', JSON.stringify(userData.goals));
-          localStorage.setItem(`goals_${firebaseUser.uid}`, JSON.stringify(userData.goals));
-        }
-        
-        // Store last fetch time for diagnostic purposes
-        localStorage.setItem('lastFirestoreFetch', new Date().toISOString());
-        
-        const user: AppUser = {
-          id: firebaseUser.uid,
-          email: firebaseUser.email || "",
-          name: firebaseUser.displayName || userData.name,
-          disorder: userData.disorder,
-          goals: userData.goals || [],
-          onboardingCompleted: userData.onboardingCompleted === true, // Ensure boolean type
-          registrationDate: userData.createdAt ? new Date(userData.createdAt) : new Date(),
-          lastActivity: userData.lastActivity || new Date().toISOString(),
-          moodEntries: userData.moodEntries || 0,
-          progressMetrics: userData.progressMetrics || {
-            completedGoals: 0,
-            totalGoals: 0,
-            streakDays: 0,
-            lastActiveDate: new Date().toISOString()
-          }
-        };
-        
-        // Special handling for Vercel to ensure we have all user data
-        if (isVercel) {
-          localStorage.setItem('vercel_user_retrieved', 'true');
-          localStorage.setItem(`vercel_user_${firebaseUser.uid}`, JSON.stringify(user));
-        }
-        
-        return user;
-      }
-    } catch (firestoreError) {
-      console.error("Firestore data retrieval error:", firestoreError);
-      localStorage.setItem('firestore_error', String(firestoreError instanceof Error ? firestoreError.message : firestoreError));
-      
-      // If on Vercel and we have cached user data, use that instead of failing
-      const onVercel = isVercelDeployment();
-      if (onVercel) {
-        const cachedUser = localStorage.getItem(`vercel_user_${firebaseUser.uid}`);
-        if (cachedUser) {
-          console.log("Vercel: Using cached user data after Firestore error");
-          try {
-            return JSON.parse(cachedUser) as AppUser;
-          } catch (parseError) {
-            console.error("Error parsing cached Vercel user:", parseError);
-          }
-        }
-      }
+      };
     }
     
     // First time user or document doesn't exist yet
     console.log("No user document exists yet, returning basic user with onboarding needed");
-    
-    // Check if we're on Vercel before creating a default user
-    const vercelDeployment = isVercelDeployment();
-    if (vercelDeployment) {
-      console.log("Creating default user on Vercel deployment");
-      localStorage.setItem('vercel_default_user_created', 'true');
-      // This helps us track first-time users on Vercel
-    }
-    
-    // Check if we have any cached user data before defaulting to false for onboarding
-    const cachedOnboarding = localStorage.getItem(`onboarding_${firebaseUser.uid}`);
-    const cachedDisorder = localStorage.getItem(`disorder_${firebaseUser.uid}`);
-    const cachedGoalsString = localStorage.getItem(`goals_${firebaseUser.uid}`);
-    
-    let onboardingStatus = false; // Default to false
-    let disorderType = undefined;
-    let userGoals = undefined;
-    
-    if (cachedOnboarding === 'true') {
-      onboardingStatus = true;
-      console.log("Using cached onboarding status: completed");
-    }
-    
-    if (cachedDisorder) {
-      disorderType = cachedDisorder;
-    }
-    
-    if (cachedGoalsString) {
-      try {
-        userGoals = JSON.parse(cachedGoalsString);
-      } catch (e) {
-        console.error("Error parsing cached goals:", e);
-      }
-    }
-    
-    const newUser: AppUser = {
+    return {
       id: firebaseUser.uid,
       email: firebaseUser.email || "",
       name: firebaseUser.displayName || "",
-      disorder: disorderType,
-      goals: userGoals,
-      onboardingCompleted: onboardingStatus,
+      onboardingCompleted: false,
       registrationDate: new Date(),
       lastActivity: new Date().toISOString(),
       moodEntries: 0,
@@ -213,48 +129,14 @@ const formatUser = async (firebaseUser: FirebaseUser): Promise<AppUser> => {
         lastActiveDate: new Date().toISOString()
       }
     };
-    
-    // Cache this default user for future use, especially important on Vercel
-    localStorage.setItem(`user_${firebaseUser.uid}`, JSON.stringify(newUser));
-    if (vercelDeployment) {
-      localStorage.setItem(`vercel_user_${firebaseUser.uid}`, JSON.stringify(newUser));
-    }
-    
-    return newUser;
   } catch (error) {
     console.error("Error formatting user:", error);
-    
-    // Log detailed error information for debugging
-    localStorage.setItem('user_format_error', String(error instanceof Error ? error.message : error));
-    localStorage.setItem('user_format_error_time', new Date().toISOString());
-    
-    // For Vercel deployments, add extra diagnostics
-    const runningOnVercel = isVercelDeployment();
-    if (runningOnVercel) {
-      localStorage.setItem('vercel_user_format_error', String(error instanceof Error ? error.message : error));
-      console.warn("Vercel deployment: Error formatting user - returning fallback user");
-    }
-    
-    // Check if we have any cached user data to use instead
-    const cachedUser = localStorage.getItem(`user_${firebaseUser.uid}`);
-    if (cachedUser) {
-      try {
-        console.log("Using previously cached user data due to error");
-        return JSON.parse(cachedUser) as AppUser;
-      } catch (parseError) {
-        console.error("Error parsing cached user:", parseError);
-      }
-    }
-    
-    // Check for critical cached values
-    const cachedOnboarding = localStorage.getItem(`onboarding_${firebaseUser.uid}`) === 'true';
-    
-    // Return a basic user object if there's an error and no cached data
-    const fallbackUser: AppUser = {
+    // Return a basic user object if there's an error
+    return {
       id: firebaseUser.uid,
       email: firebaseUser.email || "",
       name: firebaseUser.displayName || "",
-      onboardingCompleted: cachedOnboarding || false,
+      onboardingCompleted: false,
       registrationDate: new Date(),
       lastActivity: new Date().toISOString(),
       moodEntries: 0,
@@ -265,12 +147,6 @@ const formatUser = async (firebaseUser: FirebaseUser): Promise<AppUser> => {
         lastActiveDate: new Date().toISOString()
       }
     };
-    
-    // Even on error, cache this basic user for future use
-    localStorage.setItem(`user_${firebaseUser.uid}`, JSON.stringify(fallbackUser));
-    localStorage.setItem('fallback_user_created', 'true');
-    
-    return fallbackUser;
   }
 };
 
@@ -363,44 +239,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("User is signed in:", firebaseUser.uid);
           setAuthInitialized(true); // User signed in, auth is initialized
           
-          // Check for Vercel-specific handling
-          const isVercel = isVercelDeployment();
-          if (isVercel) {
-            console.log("Auth state change detected on Vercel deployment:", window.location.hostname);
-            localStorage.setItem('vercel_auth_state_change', new Date().toISOString());
-          }
-          
           // On initial page load or refresh, check localStorage first for faster response
           let formattedUser: AppUser | null = null;
-          
-          // Special handling for Vercel - try to get Vercel-specific cached user first
-          if (isVercel) {
-            const vercelCachedUser = localStorage.getItem(`vercel_user_${firebaseUser.uid}`);
-            if (vercelCachedUser) {
-              try {
-                formattedUser = JSON.parse(vercelCachedUser) as AppUser;
-                console.log("Using Vercel-specific cached user data:", formattedUser.id);
-                setCurrentUser(formattedUser);
-                
-                // Still allow fresh data fetch if online
-                if (!isOnline) {
-                  clearTimeout(authStateTimeout);
-                  setLoading(false);
-                }
-              } catch (e) {
-                console.error("Error parsing Vercel cached user:", e);
-              }
-            }
-          }
-          
-          // Standard cached user check if no Vercel-specific cache was found
           const cachedUser = localStorage.getItem(`user_${firebaseUser.uid}`);
           
-          if (cachedUser && (initialAuthCheck || !isOnline) && !formattedUser) {
+          if (cachedUser && (initialAuthCheck || !isOnline)) {
             try {
               // Use cached user data for immediate UI response
               formattedUser = JSON.parse(cachedUser) as AppUser;
-              console.log("Using cached user data for immediate UI:", formattedUser.id);
+              console.log("Using cached user data for immediate UI:", formattedUser);
               
               // IMPORTANT FIX: Check if the cached onboardingCompleted is explicitly set
               // This prevents redirecting to onboarding every time due to implicit false values
@@ -423,121 +270,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             } catch (e) {
               console.error("Error parsing cached user:", e);
-              localStorage.setItem('cached_user_parse_error', String(e instanceof Error ? e.message : e));
             }
           }
           
           // Always get fresh user data from Firestore when online
           if (isOnline) {
-            try {
-              const inVercelEnv = isVercelDeployment();
-              
-              // On Vercel, add extra logging and handling
-              if (inVercelEnv) {
-                console.log("Vercel: Getting fresh user data from Firestore");
-                localStorage.setItem('vercel_fetching_user', 'true');
-                localStorage.setItem('vercel_fetch_time', new Date().toISOString());
-              }
-              
-              formattedUser = await formatUser(firebaseUser);
-              console.log("Got fresh user data from Firestore:", formattedUser);
-              
-              // IMPORTANT: Log the onboarding status explicitly to help with debugging
-              console.log(`User onboarding status from Firestore: ${formattedUser.onboardingCompleted}`);
-              
-              setCurrentUser(formattedUser);
-              
-              // Cache the fresh user data for future use in multiple storage locations
-              // This redundancy helps ensure we always have some user data available
-              localStorage.setItem(`user_${firebaseUser.uid}`, JSON.stringify(formattedUser));
-              localStorage.setItem('authUser', JSON.stringify(formattedUser));
-              
-              // For Vercel deployment, store in Vercel-specific cache too
-              if (inVercelEnv) {
-                localStorage.setItem(`vercel_user_${firebaseUser.uid}`, JSON.stringify(formattedUser));
-                localStorage.setItem('vercel_user_fetched', 'true');
-                localStorage.setItem('vercel_fetch_success_time', new Date().toISOString());
-              }
-              
-              // Also save individual fields separately for easier access and resilience
-              if (formattedUser.onboardingCompleted !== undefined) {
-                localStorage.setItem('userOnboardingComplete', formattedUser.onboardingCompleted ? 'true' : 'false');
-                localStorage.setItem(`onboarding_${firebaseUser.uid}`, formattedUser.onboardingCompleted ? 'true' : 'false');
-              }
-              
-              if (formattedUser.disorder) {
-                localStorage.setItem('userDisorder', formattedUser.disorder);
-                localStorage.setItem(`disorder_${firebaseUser.uid}`, formattedUser.disorder);
-              }
-              
-              if (formattedUser.goals) {
-                localStorage.setItem('userGoals', JSON.stringify(formattedUser.goals));
-                localStorage.setItem(`goals_${firebaseUser.uid}`, JSON.stringify(formattedUser.goals));
-              }
-              
-              // Remove automatic redirects from auth listener to prevent unexpected redirects
-              // Let the router handle redirects instead based on current path and user state
-            } catch (fetchError) {
-              console.error("Error fetching fresh user data:", fetchError);
-              localStorage.setItem('user_fetch_error', String(fetchError instanceof Error ? fetchError.message : fetchError));
-              
-              // If we have a previously set currentUser or cached user, keep using it
-              if (!currentUser && formattedUser) {
-                setCurrentUser(formattedUser);
-              }
-            }
+            formattedUser = await formatUser(firebaseUser);
+            console.log("Got fresh user data from Firestore:", formattedUser);
+            
+            // IMPORTANT: Log the onboarding status explicitly to help with debugging
+            console.log(`User onboarding status from Firestore: ${formattedUser.onboardingCompleted}`);
+            
+            setCurrentUser(formattedUser);
+            
+            // Cache the fresh user data for future use
+            localStorage.setItem(`user_${firebaseUser.uid}`, JSON.stringify(formattedUser));
+            localStorage.setItem('authUser', JSON.stringify(formattedUser));
+            
+            // Also save onboarding status separately for easier access
+            localStorage.setItem('userOnboardingComplete', formattedUser.onboardingCompleted ? 'true' : 'false');
+            localStorage.setItem(`onboarding_${firebaseUser.uid}`, formattedUser.onboardingCompleted ? 'true' : 'false');
+            
+            // Remove automatic redirects from auth listener to prevent unexpected redirects
+            // Let the router handle redirects instead based on current path and user state
           }
         } else {
           console.log("User is signed out");
           setCurrentUser(null);
           setAuthInitialized(true); // User signed out, auth is initialized
           
-          // Special handling for Vercel deployments
-          const isVercel = isVercelDeployment();
-          if (isVercel) {
-            console.log("Vercel: Processing sign out");
-            localStorage.setItem('vercel_sign_out', new Date().toISOString());
-          }
-          
           // Clear cached user data on sign out
           const keysToRemove = [];
           try {
             for (let i = 0; i < localStorage.length; i++) {
               const key = localStorage.key(i);
-              if (key && (
-                  key.startsWith('user_') || 
-                  key.startsWith('onboarding_') || 
-                  key.startsWith('vercel_user_') ||
-                  key.startsWith('disorder_') || 
-                  key.startsWith('goals_') ||
-                  key === 'userOnboardingComplete' ||
-                  key === 'userDisorder' ||
-                  key === 'userGoals' ||
-                  key === 'authUser'
-              )) {
+              if (key && (key.startsWith('user_') || key.startsWith('onboarding_') || key === 'userOnboardingComplete')) {
                 keysToRemove.push(key);
               }
             }
-            
-            // Log what we're removing for debugging
-            console.log(`Clearing ${keysToRemove.length} cached user items from localStorage`);
-            
-            // Actually remove the items
-            keysToRemove.forEach(key => {
-              localStorage.removeItem(key);
-              if (isVercel) {
-                // On Vercel, especially log what we're removing
-                console.log(`Vercel: Removed ${key} from localStorage`);
-              }
-            });
-            
-            // Add a sign out marker for diagnostics
-            localStorage.setItem('last_sign_out_time', new Date().toISOString());
-          } catch (err) {
-            console.error("Error clearing local storage:", err instanceof Error ? err.message : err);
-            localStorage.setItem('storage_clear_error', String(err instanceof Error ? err.message : err));
-          }
+            keysToRemove.forEach(key => localStorage.removeItem(key));        } catch (err) {
+          console.error("Error clearing local storage:", err instanceof Error ? err.message : err);
         }
+      }
     } catch (err) {
         console.error("Auth state change error:", err);
         setCurrentUser(null);
@@ -555,20 +329,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubscribe();
       clearTimeout(authStateTimeout);
     };
-  }, [isOnline, currentUser]);
+  }, [isOnline]);
 
   // Add a token refresh mechanism to keep the session alive
   useEffect(() => {
     if (!currentUser) return;
     
     console.log("Setting up token refresh interval");
-    
-    // Check if we're on Vercel
-    const isVercel = isVercelDeployment();
-    if (isVercel) {
-      console.log("Setting up token refresh for Vercel deployment");
-      localStorage.setItem('vercel_token_refresh_setup', 'true');
-    }
     
     // Refresh token every 50 minutes (Firebase tokens typically expire after 1 hour)
     const refreshInterval = setInterval(async () => {
@@ -577,25 +344,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Force token refresh
           await auth.currentUser.getIdToken(true);
           console.log("Auth token refreshed successfully");
-          
-          if (isVercel) {
-            // Track successful refreshes on Vercel
-            localStorage.setItem('vercel_token_refresh_success', new Date().toISOString());
-          }
         }
       } catch (err) {
         console.error("Failed to refresh authentication token:", err);
-        if (isVercel) {
-          // Track failed refreshes on Vercel
-          localStorage.setItem('vercel_token_refresh_error', String(err instanceof Error ? err.message : err));
-        }
       }
     }, 50 * 60 * 1000); // 50 minutes
     
     return () => {
       clearInterval(refreshInterval);
     };
-  }, [currentUser]); // Only depend on currentUser
+  }, [currentUser]);
 
   // Firebase login
   const login = async (email: string, password: string) => {

@@ -1,7 +1,7 @@
 
 import { Link } from "react-router-dom";
 import AppLayout from "../components/AppLayout";
-import { useAuth } from "../hooks/use-auth";
+import { useAuth } from "../context/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   Card,

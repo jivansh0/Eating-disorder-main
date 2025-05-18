@@ -1,18 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React from 'react';
 
 const CopingStrategies: React.FC = () => {
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  const handleAudioError = () => {
-    setAudioError("Unable to load audio. Please try again later.");
-    console.error("Error loading audio file");
-  };
-
-  const handleAudioPlay = () => {
-    setAudioError(null);
-  };
-
   const videos = [
     {
       url: 'https://www.youtube.com/watch?v=Cv2DJ9riXb4',
@@ -51,21 +39,10 @@ const CopingStrategies: React.FC = () => {
       {/* MP3 Section */}
       <div className="mb-8 p-4 border rounded-lg bg-gray-50">
         <h3 className="text-xl font-medium mb-2">Audio: Shiv Shakti Energy Balance</h3>
-        <audio
-          ref={audioRef}
-          controls
-          className="w-full"
-          onError={handleAudioError}
-          onPlay={handleAudioPlay}
-        >
+        <audio controls className="w-full">
           <source src="/Music/Shivji.mp3" type="audio/mpeg" />
           Your browser does not support the audio element.
         </audio>
-        {audioError && (
-          <div className="mt-2 text-red-500 text-sm">
-            {audioError}
-          </div>
-        )}
       </div>
 
       {/* Video Grid */}

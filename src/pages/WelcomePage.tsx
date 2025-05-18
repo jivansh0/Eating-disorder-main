@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "../hooks/use-auth";
+import { useAuth } from "../context/AuthContext";
 import { Heart, Shield, Brain } from "lucide-react";
 import ScrollReveal from "@/components/ScrollReveal";
 
