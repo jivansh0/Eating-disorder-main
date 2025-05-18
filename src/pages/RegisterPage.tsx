@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/use-auth";
 import { useLoginFix } from "../hooks/use-login-fix";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,11 @@ const RegisterPage = () => {
         errorMessage = "Authentication service is unavailable. Please try again later.";
       } else if (err.code === "auth/network-request-failed") {
         errorMessage = "Network error. Please check your connection and try again.";
+      } else if (err.code === "auth/unauthorized-domain") {
+        // Handle the unauthorized domain error specifically
+        const domain = window.location.hostname;
+        errorMessage = `This domain (${domain}) is not authorized for authentication. Please contact the administrator.`;
+        console.error("Unauthorized domain error. Current domain:", domain);
       }
       
       toast({

@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/use-auth";
 import AppLayout from "../components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
   Card, 
   CardContent, 
-  CardDescription, 
+  CardDes        // Save message to database if user is logged in
+      if (currentUser?.id) {
+        await saveChatMessage(currentUser.id, userMessage); // Save message to database if user is logged in
+      if (currentUser?.id) {
+        await saveChatMessage(currentUser.id, userMessage);ption, 
   CardFooter, 
   CardHeader, 
   CardTitle 
@@ -121,7 +125,7 @@ const AIChatPage = () => {
   // Load chat history when component mounts
   useEffect(() => {
     const loadChatHistory = async () => {
-      if (currentUser?.uid) {
+      if (currentUser?.id) {
         try {
           setIsLoading(true);
           setConnectionError(false);
@@ -133,7 +137,7 @@ const AIChatPage = () => {
             return;
           }
           
-          const history = await getUserChatHistory(currentUser.uid);
+          const history = await getUserChatHistory(currentUser.id);
           
           if (history.length > 0) {
             setMessages(history);
@@ -226,9 +230,9 @@ const AIChatPage = () => {
       if (navigator.onLine) {
         setConnectionError(false);
         // Reload chat history if we're back online
-        if (currentUser?.uid) {
+        if (currentUser?.id) {
           try {
-            const history = await getUserChatHistory(currentUser.uid);
+            const history = await getUserChatHistory(currentUser.id);
             if (history.length > 0) {
               setMessages(history);
             }
@@ -306,8 +310,8 @@ const AIChatPage = () => {
       setMessages(prev => [...prev, aiMessage]);
       
       // Save AI response to database if user is logged in
-      if (currentUser?.uid) {
-        await saveChatMessage(currentUser.uid, aiMessage);
+      if (currentUser?.id) {
+        await saveChatMessage(currentUser.id, aiMessage);
       }
       
       setIsTyping(false);
@@ -434,7 +438,7 @@ const AIChatPage = () => {
                         </>
                       ) : (
                         <>
-                          <AvatarImage src={currentUser?.photoURL || ""} />
+                          <AvatarImage src="" />
                           <AvatarFallback className="bg-primary/20 text-primary">
                             <User size={16} />
                           </AvatarFallback>

@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node pre-build-check.js && node vercel-validate.js && vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "validate:env": "node vercel-validate.js",
+    "check:env": "node pre-build-check.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

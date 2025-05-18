@@ -4,6 +4,7 @@
 const debugDiv = document.getElementById('debug-info');
 const envDiv = document.getElementById('env-vars');
 const domainDiv = document.getElementById('domain-info');
+const vercelDiv = document.getElementById('vercel-info');
 
 // Show domain information
 domainDiv.innerHTML = `
@@ -36,6 +37,39 @@ try {
   debugDiv.innerHTML = `<p>Error reading local storage: ${e.message}</p>`;
 }
 
+// Check for Vercel-specific environment
+const checkVercelEnvironment = () => {
+  // Check if we're on Vercel
+  const isVercel = window.location.hostname.includes('vercel.app');
+  
+  let html = '<h3>Vercel Deployment Information</h3>';
+  
+  if (isVercel) {
+    html += `
+      <p><strong>Vercel Environment:</strong> Detected ✅</p>
+      <p><strong>Deployment URL:</strong> ${window.location.origin}</p>
+    `;
+    
+    // Check if VITE_VERCEL_ENV_VARS exists
+    if (typeof window.VITE_VERCEL_ENV_VARS !== 'undefined') {
+      html += `<p><strong>Vercel ENV Variables:</strong> Available ✅</p>`;
+      try {
+        const parsedVars = JSON.parse(window.VITE_VERCEL_ENV_VARS);
+        const varCount = Object.keys(parsedVars).length;
+        html += `<p><strong>Environment Variables Count:</strong> ${varCount}</p>`;
+      } catch (e) {
+        html += `<p><strong>Error parsing Vercel ENV:</strong> ${e.message}</p>`;
+      }
+    } else {
+      html += `<p><strong>Vercel ENV Variables:</strong> <span style="color:red">Missing ❌</span></p>`;
+    }
+  } else {
+    html += `<p>Not running on Vercel deployment</p>`;
+  }
+  
+  vercelDiv.innerHTML = html;
+};
+
 // Check environment variables
 const checkEnvVars = () => {
   const importMetaEnv = window.ENV || {};
@@ -45,7 +79,8 @@ const checkEnvVars = () => {
     'VITE_FIREBASE_AUTH_DOMAIN',
     'VITE_FIREBASE_PROJECT_ID',
     'VITE_APP_ENVIRONMENT',
-    'VITE_AUTHORIZED_DOMAINS'
+    'VITE_AUTHORIZED_DOMAINS',
+    'VITE_GEMINI_API_KEY'
   ];
   
   let html = '<h3>Environment Variables</h3><ul>';
@@ -65,22 +100,30 @@ const checkEnvVars = () => {
 };
 
 // Expose env vars for testing (sanitized)
-window.ENV = {};
+window.ENV = window.ENV || {};
+
+// Check for VITE_VERCEL_ENV_VARS global variable from vite.config.ts
 try {
-  // This will only work during build time with Vite
-  // In production, these values should be replaced with actual values
-  window.ENV = {
-    VITE_FIREBASE_API_KEY: '***' + (import.meta?.env?.VITE_FIREBASE_API_KEY || '').substring(3),
-    VITE_FIREBASE_AUTH_DOMAIN: import.meta?.env?.VITE_FIREBASE_AUTH_DOMAIN,
-    VITE_FIREBASE_PROJECT_ID: import.meta?.env?.VITE_FIREBASE_PROJECT_ID,
-    VITE_APP_ENVIRONMENT: import.meta?.env?.VITE_APP_ENVIRONMENT,
-    VITE_AUTHORIZED_DOMAINS: import.meta?.env?.VITE_AUTHORIZED_DOMAINS
-  };
+  if (typeof window.VITE_VERCEL_ENV_VARS !== 'undefined') {
+    console.log('Found VITE_VERCEL_ENV_VARS, parsing...');
+    const parsedVars = JSON.parse(window.VITE_VERCEL_ENV_VARS);
+    
+    // Copy all variables to window.ENV
+    for (const key in parsedVars) {
+      if (key.startsWith('VITE_')) {
+        window.ENV[key] = parsedVars[key];
+      }
+    }
+  } else {
+    console.log('VITE_VERCEL_ENV_VARS not found.');
+  }
 } catch (e) {
-  console.log('Error accessing import.meta.env:', e);
+  console.error('Error parsing VITE_VERCEL_ENV_VARS:', e);
 }
 
+// Run all checks
 checkEnvVars();
+checkVercelEnvironment();
 
 document.getElementById('refresh-btn').addEventListener('click', () => {
   location.reload();

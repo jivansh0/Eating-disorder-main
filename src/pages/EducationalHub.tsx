@@ -5,7 +5,7 @@ import { Outlet, NavLink } from "react-router-dom";
 
 const EducationalHub = () => {
   const navLinkClasses = ({ isActive }: { isActive: boolean }): string => 
-    `inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
+    `inline-flex items-center justify-center rounded-sm px-2 py-1.5 text-xs sm:text-sm sm:px-3 font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 text-center ${
       isActive 
         ? 'bg-background text-foreground shadow-sm' 
         : 'hover:bg-accent hover:text-accent-foreground'
@@ -30,18 +30,18 @@ const EducationalHub = () => {
           />
         </div>
 
-        {/* Subpage Navigation Tabs */}
-        <nav className="flex space-x-2 border-b border-border p-1 mb-4">
-          <NavLink to="/learn/understanding" className={navLinkClasses}>
+        {/* Subpage Navigation Tabs - Responsive */}
+        <nav className="flex flex-wrap gap-2 border-b border-border p-1 mb-4 sm:flex-nowrap md:space-x-2">
+          <NavLink to="/learn/understanding" className={({ isActive }) => `${navLinkClasses({ isActive })} flex-grow sm:flex-grow-0`}>
             <BookOpen className="mr-2 h-4 w-4" /> Understand
           </NavLink>
-          <NavLink to="/learn/nutrition" className={navLinkClasses}>
+          <NavLink to="/learn/nutrition" className={({ isActive }) => `${navLinkClasses({ isActive })} flex-grow sm:flex-grow-0`}>
             <Utensils className="mr-2 h-4 w-4" /> Nutrition
           </NavLink>
-          <NavLink to="/learn/coping" className={navLinkClasses}>
+          <NavLink to="/learn/coping" className={({ isActive }) => `${navLinkClasses({ isActive })} flex-grow sm:flex-grow-0`}>
               <Brain className="mr-2 h-4 w-4" /> Coping
           </NavLink>
-          <NavLink to="/learn/body-image" className={navLinkClasses}>
+          <NavLink to="/learn/body-image" className={({ isActive }) => `${navLinkClasses({ isActive })} flex-grow sm:flex-grow-0`}>
             <Smile className="mr-2 h-4 w-4" /> Body Image
           </NavLink>
         </nav>

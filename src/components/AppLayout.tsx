@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { 
@@ -44,9 +44,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     };
   }, []);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error instanceof Error ? error.message : String(error));
+      // If logout fails, still navigate to login
+      navigate("/login");
+    }
   };
 
   const navigation = [
